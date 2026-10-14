@@ -1,0 +1,76 @@
+{
+  "plan": {
+    "playbook": "risk_scan",
+    "scope": { "time_range": "近 1 年", "view": "经营 + 风险", "caliber": "-" },
+    "steps": [
+      { "seq": 1, "node_id": "Q1", "parent_id": null, "title": "获取贵州茅台财务摘要", "sub_question": "基本面：营收/净利/ROE 趋势如何", "hypothesis": "营收与净利同比保持双位数增长", "data_needed": ["营收同比", "净利同比", "ROE"], "kind": "tool", "tool_name": "get_financials", "args": { "symbol": "600519.SH" }, "depends_on": [] },
+      { "seq": 2, "node_id": "Q2", "parent_id": null, "title": "获取估值指标（多源）", "sub_question": "估值处于什么水平，口径是否一致", "hypothesis": "多源估值可能因口径不同而不一致", "data_needed": ["PE", "PB"], "kind": "tool", "tool_name": "get_valuation", "args": { "symbol": "600519.SH", "with_sources": true }, "depends_on": [] },
+      { "seq": 3, "node_id": "Q3", "parent_id": null, "title": "拉取近 20 日行情", "sub_question": "近期价格波动特征", "hypothesis": "近月价格波动加大", "data_needed": ["收盘价序列"], "kind": "tool", "tool_name": "get_kline", "args": { "symbol": "600519.SH", "days": 20 }, "depends_on": [] },
+      { "seq": 4, "node_id": "Q4", "parent_id": null, "title": "检索公告与事件", "sub_question": "有哪些已发生的公告与预定事件", "hypothesis": "存在回购注销与解禁类事件", "data_needed": ["公告列表", "事件日历"], "kind": "tool", "tool_name": "get_announcements", "args": { "symbol": "600519.SH" }, "depends_on": [] },
+      { "seq": 5, "node_id": "Q5", "parent_id": null, "title": "检索相关资讯舆情", "sub_question": "舆情层面有哪些信息点", "hypothesis": "舆情中性偏正", "data_needed": ["资讯标题与情感"], "kind": "tool", "tool_name": "search_news", "args": { "symbol": "600519.SH" }, "depends_on": [] },
+      { "seq": 6, "node_id": "Q6", "parent_id": null, "title": "归纳：风险点扫描", "sub_question": "综合证据的风险点与不确定判断", "hypothesis": "估值口径与公告覆盖是主要不确定源", "data_needed": ["以上全部证据"], "kind": "analysis", "tool_name": null, "args": {}, "depends_on": ["Q1", "Q2", "Q3", "Q4", "Q5"] }
+    ]
+  },
+  "events": [
+    { "type": "notice", "level": "info", "category": "system", "message": "演示模式：以下执行为预置轨迹回放，非实时 LLM 调用", "delay_ms": 300 },
+    { "type": "step_updated", "seq": 1, "status": "running", "delay_ms": 500 },
+    { "type": "step_updated", "seq": 1, "status": "succeeded", "result_summary": "营收同比 12.4%，净利同比 11.8%，ROE 31.2%（构造数据 @2026-09-30）", "delay_ms": 800 },
+    { "type": "evidence", "delay_ms": 150, "evidence": { "step_seq": 1, "label": "mock", "type": "financial", "source": "get_financials", "source_detail": "get_financials({\"symbol\":\"600519.SH\"})", "metric": "financials", "value_text": "营收同比 12.4%，净利同比 11.8%，ROE 31.2%", "unit": "%", "caliber": "最近报告期同比", "as_of": "2026-09-30", "status": "ok", "raw_ref": "tool://get_financials?symbol=600519.SH", "raw_snippet": "{\"revenue_yoy\":12.4,\"net_profit_yoy\":11.8,\"roe\":31.2}", "content": { "symbol": "600519.SH", "revenue_yoy": 12.4, "net_profit_yoy": 11.8, "roe": 31.2, "debt_ratio": 16.4 } } },
+    { "type": "checkpoint", "seq": 1, "note": "完成财务摘要", "delay_ms": 200 },
+    { "type": "step_updated", "seq": 2, "status": "running", "delay_ms": 400 },
+    { "type": "notice", "level": "conflict", "category": "data_conflict", "message": "PE 指标多源不一致：源A 22.6（TTM）vs 源B 24.41（静态），已陈列双方数值并标记冲突，需用户指定主源或按口径解释", "delay_ms": 500 },
+    { "type": "step_updated", "seq": 2, "status": "degraded", "result_summary": "PE(TTM) 源A=22.6 源B=24.41（冲突，已标记）", "delay_ms": 700 },
+    { "type": "evidence", "delay_ms": 150, "evidence": { "step_seq": 2, "label": "mock", "type": "valuation", "source": "get_valuation", "source_detail": "get_valuation({\"symbol\":\"600519.SH\",\"with_sources\":true})", "metric": "pe", "value_text": "PE(TTM) 源A=22.6 源B=24.41（冲突）", "unit": "倍", "caliber": "TTM vs 静态口径不一致", "as_of": "2026-10-13", "status": "conflict", "raw_ref": "tool://get_valuation?symbol=600519.SH&with_sources=true", "raw_snippet": "{\"conflict\":true,\"source_a\":{\"value\":22.6,\"caliber\":\"TTM\"},\"source_b\":{\"value\":24.41,\"caliber\":\"静态\"}}", "content": { "conflict": true, "source_a": { "value": 22.6, "caliber": "TTM" }, "source_b": { "value": 24.41, "caliber": "静态" } } } },
+    { "type": "checkpoint", "seq": 2, "note": "估值节点带冲突标记完成", "delay_ms": 200 },
+    { "type": "step_updated", "seq": 3, "status": "running", "delay_ms": 400 },
+    { "type": "step_updated", "seq": 3, "status": "succeeded", "result_summary": "近 20 交易日收盘价序列，末值 1502.5（构造数据）", "delay_ms": 700 },
+    { "type": "evidence", "delay_ms": 150, "evidence": { "step_seq": 3, "label": "mock", "type": "market_data", "source": "get_kline", "source_detail": "get_kline({\"symbol\":\"600519.SH\",\"days\":20})", "metric": "close_series", "value_text": "近 20 交易日收盘价末值 1502.5", "unit": "元", "caliber": "前复权日收盘", "as_of": "2026-10-13", "status": "ok", "raw_ref": "tool://get_kline?symbol=600519.SH&days=20", "raw_snippet": "{\"days\":20,\"last_close\":1502.5}", "content": { "days": 20, "last_close": 1502.5 } } },
+    { "type": "checkpoint", "seq": 3, "note": "行情数据完成", "delay_ms": 200 },
+    { "type": "step_updated", "seq": 4, "status": "running", "delay_ms": 400 },
+    { "type": "notice", "level": "warn", "category": "tool_failure", "message": "get_announcements 调用超时（注入故障），已降级跳过并记录，不生成『正常』结论", "delay_ms": 600 },
+    { "type": "step_updated", "seq": 4, "status": "degraded", "error": "工具 get_announcements 调用超时（注入故障）", "delay_ms": 500 },
+    { "type": "checkpoint", "seq": 4, "note": "公告节点降级（超时）", "delay_ms": 200 },
+    { "type": "notice", "level": "info", "category": "system", "message": "上下文已自动压缩（2,410 → 980 字符），证据引用完整", "delay_ms": 600 },
+    { "type": "step_updated", "seq": 5, "status": "running", "delay_ms": 400 },
+    { "type": "step_updated", "seq": 5, "status": "succeeded", "result_summary": "检索到 5 条构造资讯（2 正面 / 2 中性 / 1 负面）", "delay_ms": 700 },
+    { "type": "evidence", "delay_ms": 150, "evidence": { "step_seq": 5, "label": "mock", "type": "news", "source": "search_news", "source_detail": "search_news({\"symbol\":\"600519.SH\"})", "metric": "news", "value_text": "5 条构造资讯：2 正面 / 2 中性 / 1 负面", "unit": "条", "caliber": "标题级资讯，未含全文", "as_of": "2026-10-13", "status": "ok", "raw_ref": "tool://search_news?symbol=600519.SH", "raw_snippet": "{\"count\":5,\"positive\":2,\"neutral\":2,\"negative\":1}", "content": { "count": 5, "sentiment": { "positive": 2, "neutral": 2, "negative": 1 } } } },
+    { "type": "checkpoint", "seq": 5, "note": "舆情检索完成", "delay_ms": 200 },
+    { "type": "step_updated", "seq": 6, "status": "running", "delay_ms": 600 },
+    { "type": "step_updated", "seq": 6, "status": "succeeded", "result_summary": "完成风险点归纳（要点均带证据引用）", "delay_ms": 900 },
+    { "type": "checkpoint", "seq": 6, "note": "全部节点完成", "delay_ms": 200 },
+    {
+      "type": "artifact", "delay_ms": 900,
+      "artifact": {
+        "template": "risk_scan",
+        "content": {
+          "title": "贵州茅台（600519.SH）风险点扫描报告【演示轨迹】",
+          "narrative": "本次研究围绕贵州茅台近 1 年的经营变化与风险点展开，基于构造数据做演示性梳理，结论均标注证据引用，可逐条核对。\n\n从经营基本盘看，最近报告期营收同比 +12.4%、净利同比 +11.8%，ROE 维持在 31.2% 的水平（口径：最近报告期同比，@2026-09-30）[E1]，整体保持双位数增长、盈利能力稳健。价格层面，近 20 个交易日收盘价区间波动，末值 1502.5 元（口径：前复权日收盘）[E3]，短期波动加大但未见结构性异动。\n\n需要重点提示两类风险。其一是估值口径风险：PE 指标出现多源不一致，源A 22.6（TTM）与源B 24.41（静态）并存 [E2]，若对比时不统一口径，可能产生约 8% 的差异（推断），该差异在口径对齐后是否消失尚待验证。其二是数据覆盖风险：公告维度本次拉取超时降级，公告与解禁类事件未覆盖，相关风险需补数后复核。\n\n舆情层面检索到 5 条构造资讯，2 正面 / 2 中性 / 1 负面，未见集中负面信息（推断），但样本量有限、覆盖不足，结论置信度低。综合来看：基本面指标稳健，主要不确定源集中在估值口径与公告覆盖两处，建议后续统一估值口径并补拉公告数据后再做交叉核对。本报告为研究分析，不构成任何投资建议；全部数据为构造数据（演示环境）。",
+          "summary": [
+            { "text": "基于构造数据的演示性梳理：基本面指标稳健，估值存在口径差异，舆情中性偏正，公告维度本次缺失。", "refs": [1] }
+          ],
+          "facts": [
+            { "id": "F1", "text": "最近报告期营收同比 +12.4%，净利同比 +11.8%，ROE 31.2%（口径：最近报告期同比，@2026-09-30，构造数据）", "refs": [1] },
+            { "id": "F2", "text": "PE 出现多源不一致：源A 22.6（TTM）与源B 24.41（静态），差异源于统计口径不同，已标记冲突", "refs": [2] },
+            { "id": "F3", "text": "近 20 个交易日收盘价区间波动，末值 1502.5 元（口径：前复权日收盘，构造数据）", "refs": [3] }
+          ],
+          "inferences": [
+            { "id": "I1", "text": "估值对比时若不统一口径，可能产生约 8% 的差异（未验证推断）", "refs": [2], "confidence": "中", "counter_conditions": "若源B 实为同口径 TTM，则该差异不成立" },
+            { "id": "I2", "text": "舆情中性偏正，未见集中负面信息（样本仅 5 条构造资讯，覆盖有限）", "refs": [], "confidence": "低", "counter_conditions": "扩大资讯样本后可能改变结论" }
+          ],
+          "unverified": [
+            { "id": "U1", "text": "公告维度存在未覆盖风险（本次拉取失败），需补数后复核", "refs": [] }
+          ],
+          "data_quality": [
+            { "id": "D1", "text": "公告数据拉取超时降级，公告维度缺失；估值数据两源冲突，已双源陈列等待指定主源", "refs": [2] }
+          ],
+          "risks": [
+            "公告数据本次拉取失败（超时降级），公告维度风险未覆盖，需补数后复核",
+            "全部数据为构造数据（演示环境），本报告不构成任何投资建议",
+            "估值口径冲突未解决前，估值维度结论仅供参考"
+          ]
+        }
+      }
+    },
+    { "type": "memory", "content": "用户偏好：输出报告时要求『事实/推断分区 + 证据引用』（来自本次任务）", "delay_ms": 500 }
+  ]
+}

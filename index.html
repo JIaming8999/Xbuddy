@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>投资 X Buddy · 对话式投研工作台</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ============ 顶栏 ============ -->
+<header class="topbar">
+  <div class="brand">投资 X&nbsp;Buddy</div>
+  <div class="topbar-topic">
+    <span class="hint">当前主题</span>
+    <select id="topicSelect" title="切换研究主题"></select>
+  </div>
+  <div class="topbar-right">
+    <span class="badge badge-gray" id="dataBadge">数据源：-</span>
+    <span class="badge badge-blue" id="modeBadge">真实模式</span>
+    <label class="dev-toggle" title="故障注入 / 手动压缩 / trace / 检查点，仅开发者模式可见">
+      <input type="checkbox" id="devToggle" /> 开发者模式
+    </label>
+  </div>
+</header>
+
+<!-- ============ 三区布局 ============ -->
+<main class="layout">
+
+  <!-- 左：主题与线程 -->
+  <aside class="left">
+    <div class="left-sec">
+      <div class="left-head">
+        <span>公司 / 主题</span>
+        <button class="btn ghost sm" id="btnNewTopic">＋ 新建主题</button>
+      </div>
+      <ul class="topic-list" id="topicList"></ul>
+    </div>
+    <div class="left-sec grow">
+      <div class="left-head">
+        <span>研究线程</span>
+        <button class="btn ghost sm" id="btnNewThread">＋ 新研究</button>
+      </div>
+      <ul class="thread-list" id="threadList"></ul>
+    </div>
+    <div class="left-foot hint" id="leftFoot"></div>
+  </aside>
+
+  <!-- 中：活动条 + 对话流 + Canvas + 输入区 -->
+  <section class="center">
+
+    <!-- 活动条（单行常驻） -->
+    <div class="activity-bar" id="activityBar">
+      <span class="act-main" id="actMain">待命 · 输入研究目标开始</span>
+      <span class="act-progress" id="actProgress"></span>
+      <span class="act-ctx" id="actCtx" title="上下文用量">上下文 <span class="ctx-track"><span class="ctx-fill" id="ctxFill"></span></span> <b id="ctxPct">0%</b></span>
+      <span class="act-warn" id="actWarn" title="点击查看系统事件">⚠ 0 条异常</span>
+    </div>
+
+    <!-- 对话流（只允许 5 类消息） -->
+    <div class="chat" id="chatStream"></div>
+
+    <!-- Canvas 产物区（常驻，不随对话滚走） -->
+    <div class="canvas-wrap" id="canvasWrap" hidden>
+      <div class="canvas-toolbar">
+        <b>研究报告</b>
+        <span class="hint" id="canvasVersion"></span>
+        <span class="grow"></span>
+        <button class="btn ghost sm" id="btnCanvasDiff" hidden>查看本版 diff</button>
+      </div>
+      <div class="canvas" id="canvasBody"></div>
+    </div>
+
+    <!-- 输入区 -->
+    <div class="composer">
+      <button class="btn ghost" id="btnAddEvidence" title="登记材料/数据，入库后与工具证据同权引用">补充证据</button>
+      <textarea id="msgInput" rows="2" placeholder="描述研究目标，或对报告 / 提纲提出修改，如「去掉估值部分」「第二条推断置信度改低并补反驳条件」"></textarea>
+      <select id="modelSelect" title="选择模型"></select>
+      <button class="btn primary" id="btnSend">发送</button>
+    </div>
+
+    <!-- 开发者模式面板（唯一允许暴露 trace 的通道） -->
+    <div class="devpanel" id="devPanel" hidden>
+      <div class="dev-row">
+        <b>开发者模式</b>
+        <span class="hint">故障注入 / 手动压缩 / 检查点 / trace——仅此处可见</span>
+        <span class="grow"></span>
+        <span class="hint" id="devStats"></span>
+      </div>
+      <div class="dev-row">
+        <label>故障注入
+          <select id="anomalySelect">
+            <option value="none">关闭</option>
+            <option value="timeout">超时 timeout</option>
+            <option value="fail">接口失败 fail</option>
+            <option value="missing">数据缺失 missing</option>
+            <option value="conflict">多源冲突 conflict</option>
+            <option value="stale">数据过期 stale</option>
+          </select>
+        </label>
+        <button class="btn ghost sm" id="btnApplyAnomaly">应用</button>
+        <button class="btn ghost sm" id="btnCompress">手动压缩（正常会自动触发）</button>
+        <span class="grow"></span>
+        <button class="btn ghost sm" id="btnRefreshDev">刷新 trace / 检查点</button>
+      </div>
+      <div class="dev-cols">
+        <div>
+          <div class="dev-sub">检查点（恢复到某一步）</div>
+          <ul id="ckptList" class="dev-list"></ul>
+        </div>
+        <div>
+          <div class="dev-sub">trace / token / 时延</div>
+          <ul id="traceList" class="dev-list"></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 右：证据库 / 记忆 / 版本 -->
+  <aside class="right" id="rightPanel">
+    <div class="right-tabs">
+      <button class="tab active" data-tab="evidence">证据库</button>
+      <button class="tab" data-tab="memory">记忆</button>
+      <button class="tab" data-tab="version">产物版本</button>
+      <button class="btn ghost sm" id="btnCollapseRight" title="折叠右栏">»</button>
+    </div>
+
+    <div class="right-pane" id="evidencePane">
+      <div class="ev-tools">
+        <input id="evSearch" placeholder="搜索证据（指标 / 来源）" />
+        <div class="ev-filters">
+          <button class="chip active" data-evf="all">全部</button>
+          <button class="chip" data-evf="conflict">冲突</button>
+          <button class="chip" data-evf="missing">缺失</button>
+          <button class="chip" data-evf="stale">过期</button>
+          <button class="chip" data-evf="user_upload">我补充的</button>
+        </div>
+      </div>
+      <div class="ev-list" id="evList"></div>
+    </div>
+
+    <div class="right-pane" id="memoryPane" hidden>
+      <div class="pane-sub">候选记忆（确认后写入主题，防止污染）</div>
+      <div id="memCandidateList"></div>
+      <div class="pane-sub">已确认记忆（本主题）</div>
+      <div id="memActiveList"></div>
+    </div>
+
+    <div class="right-pane" id="versionPane" hidden>
+      <div class="pane-sub">版本历史（点击切换查看，可回滚）</div>
+      <div id="versionList"></div>
+    </div>
+  </aside>
+</main>
+
+<!-- ============ 浮层：Canvas 选中文字工具条 ============ -->
+<div class="sel-toolbar" id="selToolbar" hidden>
+  <button data-sel="revise">改这段</button>
+  <button data-sel="ask">追问这个</button>
+  <button data-sel="evidence">查看证据</button>
+</div>
+
+<!-- ============ 弹层：新建主题 ============ -->
+<div class="modal-mask" id="topicModal" hidden>
+  <div class="modal">
+    <h3>新建主题</h3>
+    <p class="hint">主题是长期存活的一级对象（如「贵州茅台」），证据库与记忆挂在主题下，跨研究复用。</p>
+    <label>主题名 / 标的<input id="topicName" placeholder="如：贵州茅台" /></label>
+    <label>代码（可选）<input id="topicSymbol" placeholder="如：600519.SH" /></label>
+    <label>备注（可选）<input id="topicNote" placeholder="" /></label>
+    <div class="modal-btns">
+      <button class="btn ghost" data-close="topicModal">取消</button>
+      <button class="btn primary" id="btnCreateTopic">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 弹层：新建研究 ============ -->
+<div class="modal-mask" id="threadModal" hidden>
+  <div class="modal">
+    <h3>新建研究</h3>
+    <label>研究目标<textarea id="goalInput" rows="3" placeholder="如：梳理贵州茅台近 1 年经营变化与风险点"></textarea></label>
+    <label>模式
+      <select id="threadMode">
+        <option value="real">真实模式（实时调用 LLM）</option>
+        <option value="replay">演示模式（轨迹重放，非实时）</option>
+      </select>
+    </label>
+    <details class="llm-cfg">
+      <summary>LLM 配置（真实模式可自定义，默认 mimo-v2.6-pro）</summary>
+      <!-- 预填 api_key / base_url 已移除（改为 placeholder），避免随链接泄露密钥；服务端 .env 提供默认配置，真实模式开箱即用 -->
+      <label>接口地址 <input id="cfgBaseUrl" placeholder="https://token-plan-cn.xiaomimimo.com/v1" /></label>
+      <label>API Key <input id="cfgApiKey" type="password" placeholder="sk-…（可选，留空则用服务端默认）" /></label>
+      <label>模型
+        <select id="cfgModel"></select>
+      </label>
+      <button class="btn ghost sm" id="btnTestLlm">测试连接</button>
+      <span class="hint" id="llmTestResult"></span>
+    </details>
+    <div class="modal-btns">
+      <button class="btn ghost" data-close="threadModal">取消</button>
+      <button class="btn primary" id="btnCreateThread">创建并自动规划</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 弹层：补充证据 ============ -->
+<div class="modal-mask" id="evidenceModal" hidden>
+  <div class="modal">
+    <h3>补充证据</h3>
+    <p class="hint">登记后入库为「用户补充」证据，与工具取数同权，可在报告中被引用。</p>
+    <label>指标 / 字段<input id="evMetric" placeholder="如：渠道批价" /></label>
+    <label>数值 / 内容<input id="evValue" placeholder="如：2650 元/瓶" /></label>
+    <div class="two-col">
+      <label>单位<input id="evUnit" placeholder="如：元" /></label>
+      <label>时点<input id="evAsOf" placeholder="如：2026-09-30" /></label>
+    </div>
+    <label>口径（可选）<input id="evCaliber" placeholder="如：经销商批发价，周度均值" /></label>
+    <label>来源<input id="evSource" placeholder="如：渠道调研纪要 / 公司公告" /></label>
+    <label>原文片段（新闻/上传类建议填写）<textarea id="evSnippet" rows="2"></textarea></label>
+    <div class="modal-btns">
+      <button class="btn ghost" data-close="evidenceModal">取消</button>
+      <button class="btn primary" id="btnSaveEvidence">入库</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 弹层：节点编辑 / 添加（提纲卡编辑态，替代 prompt()） ============ -->
+<div class="modal-mask" id="nodeModal" hidden>
+  <div class="modal">
+    <h3 id="nodeModalTitle">编辑问题</h3>
+    <label>子问题 / 标题<input id="nodeTitle" /></label>
+    <label>假设（想验证什么）<input id="nodeHypothesis" /></label>
+    <label>工具
+      <select id="nodeTool"></select>
+    </label>
+    <label>工具入参（key=value，逗号分隔）<input id="nodeArgs" placeholder="symbol=600519.SH, period=2026Q3" /></label>
+    <div class="modal-btns">
+      <button class="btn ghost" data-close="nodeModal">取消</button>
+      <button class="btn primary" id="btnSaveNode">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 弹层：系统事件（活动条点开） ============ -->
+<div class="modal-mask" id="noticeModal" hidden>
+  <div class="modal">
+    <h3>系统事件</h3>
+    <p class="hint">压缩、重试、降级、冲突等系统事件在这里查看；只有需要你决策的事件才会进入对话流。</p>
+    <div id="noticeList" class="notice-list"></div>
+    <div class="modal-btns"><button class="btn ghost" data-close="noticeModal">关闭</button></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
